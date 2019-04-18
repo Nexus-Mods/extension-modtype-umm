@@ -1,20 +1,14 @@
 import * as Promise from 'bluebird';
-import { app as appIn, remote } from 'electron';
 import * as path from 'path';
-import { actions, fs, log, types, util } from 'vortex-api';
+import { actions, fs, log, selectors, types, util } from 'vortex-api';
 import * as winapi from 'winapi-bindings';
-
-const app = remote !== undefined ? remote.app : appIn;
 
 let _API;
 const UMM_EXE = 'UnityModManager.exe';
 
-// Default UMM installation path when installed via Vortex.
-const UMM_VORTEX_PATH = path.join(app.getPath('userData'), 'Tools', 'UnityModManager');
-
 // List of games which are supported by this modtype.
 // TODO: Have this populated automatically using UMM's configuration files.
-const gameSupport = ['dawnofman'];
+const gameSupport = ['dawnofman', 'gardenpaws'];
 
 function setUMMPath(resolvedPath: string, gameId: string) {
   const state = _API.store.getState();
@@ -87,6 +81,8 @@ function testUmmApp(files, gameId) {
 function installUMM(files, destinationPath, gameId) {
   const execFile = files.find(file => file.endsWith(UMM_EXE));
   const idx = execFile.indexOf(UMM_EXE);
+  const installDir = selectors.installPathForGame(_API.store.getState(), gameId);
+  const expectedDestination = path.join(installDir, path.basename(destinationPath, '.installing'));
   const instructions = files.map(file => {
     return {
       type: 'copy',
@@ -95,7 +91,7 @@ function installUMM(files, destinationPath, gameId) {
     };
   });
 
-  return setUMMPath(UMM_VORTEX_PATH, gameId)
+  return setUMMPath(expectedDestination, gameId)
     .then(() => Promise.resolve({ instructions }));
 }
 
@@ -105,7 +101,7 @@ function init(context: types.IExtensionContext) {
   context.registerInstaller('umm-installer', 15, testUmmApp, installUMM);
   context.registerModType('umm', 15,
     (gameId) => isSupported(gameId),
-    () => UMM_VORTEX_PATH,
+    () => undefined,
     (instructions) => endsWithPattern(instructions, UMM_EXE));
 
   context.once(() => {
@@ -116,15 +112,8 @@ function init(context: types.IExtensionContext) {
         ? readRegistryKey('HKEY_CURRENT_USER', 'Software\\UnityModManager', 'Path')
           .then(value => fs.statAsync(path.join(value, UMM_EXE))
             .then(() => setUMMPath(value, gameMode)))
-          .catch(() => {
-            // UMM hasn't been installed/run prior to this point. Test the default
-            //  Vortex tools installation folder just in case the user has installed
-            //  it via Vortex and hasn't run it yet.
-            return fs.ensureDirWritableAsync(UMM_VORTEX_PATH, () => Promise.resolve())
-              .then(() => fs.statAsync(path.join(UMM_VORTEX_PATH, UMM_EXE))
-                .then(() => setUMMPath(UMM_VORTEX_PATH, gameMode)))
-              .catch(err => Promise.resolve());
-          })
+          // UMM hasn't been installed/run prior to this point.
+          .catch(() => Promise.resolve())
         : Promise.resolve();
     });
   });
