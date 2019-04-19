@@ -8,7 +8,7 @@ const UMM_EXE = 'UnityModManager.exe';
 
 // List of games which are supported by this modtype.
 // TODO: Have this populated automatically using UMM's configuration files.
-const gameSupport = ['dawnofman', 'gardenpaws'];
+const gameSupport = ['dawnofman', 'gardenpaws', 'pathfinderkingmaker', 'oxygennotincluded'];
 
 function setUMMPath(resolvedPath: string, gameId: string) {
   const state = _API.store.getState();
