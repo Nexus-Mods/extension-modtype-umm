@@ -1,4 +1,4 @@
-import * as Promise from 'bluebird';
+import Promise from 'bluebird';
 import * as path from 'path';
 import { actions, fs, log, selectors, types, util } from 'vortex-api';
 import * as winapi from 'winapi-bindings';
