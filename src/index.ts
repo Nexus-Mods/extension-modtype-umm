@@ -39,7 +39,7 @@ function createUMMTool(ummPath, toolId, gameId) {
     hidden: false,
     custom: false,
     workingDirectory: ummPath,
-  }));
+  }, true));
 
   return Promise.resolve();
 }
