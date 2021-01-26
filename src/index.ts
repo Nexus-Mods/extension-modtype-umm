@@ -10,16 +10,21 @@ const UMM_EXE = 'UnityModManager.exe';
 // TODO: Have this populated automatically using UMM's configuration files.
 const gameSupport = ['dawnofman', 'gardenpaws', 'pathfinderkingmaker', 'oxygennotincluded'];
 
+const isUMMExecPred = (filePath: string): boolean =>
+  path.basename(filePath).toLowerCase() === UMM_EXE.toLowerCase();
+
 function setUMMPath(resolvedPath: string, gameId: string) {
   const state = _API.store.getState();
   const tools = util.getSafe(state, ['settings', 'gameMode', gameId, 'tools'], undefined);
 
   if (tools !== undefined) {
-    const UMM = (Object.keys(tools).map(key => tools[key]))
-      .find(tool => tool.path.endsWith(UMM_EXE));
+    const validTools = Object.keys(tools)
+      .filter(key => !!tools[key]?.path)
+      .map(key => tools[key]);
 
+    const UMM = validTools.find(tool => isUMMExecPred(tool.path));
     return (UMM !== undefined)
-      ? ((UMM.path !== undefined) && (path.dirname(UMM.path) === resolvedPath))
+      ? (path.dirname(UMM.path) === resolvedPath)
         ? Promise.resolve()
         : createUMMTool(resolvedPath, UMM.id,  gameId)
       : createUMMTool(resolvedPath, 'UnityModManager', gameId);
@@ -44,11 +49,6 @@ function createUMMTool(ummPath, toolId, gameId) {
   return Promise.resolve();
 }
 
-function endsWithPattern(instructions, pattern) {
-  return Promise.resolve(instructions.find(inst =>
-    inst.source.endsWith(pattern)) !== undefined);
-}
-
 function readRegistryKey(hive, key, name) {
   try {
     const instPath = winapi.RegGetValue(hive, key, name);
@@ -66,8 +66,7 @@ function isSupported(gameId: string): boolean {
 }
 
 function isUMMApp(files) {
-  return files.find(file =>
-    file.toLowerCase().endsWith(UMM_EXE.toLowerCase())) !== undefined;
+  return files.find(file => isUMMExecPred(file)) !== undefined;
 }
 
 function testUmmApp(files, gameId) {
@@ -79,7 +78,7 @@ function testUmmApp(files, gameId) {
 }
 
 function installUMM(files, destinationPath, gameId) {
-  const execFile = files.find(file => file.endsWith(UMM_EXE));
+  const execFile = files.find(file => isUMMExecPred(file));
   const idx = execFile.indexOf(UMM_EXE);
   const installDir = selectors.installPathForGame(_API.store.getState(), gameId);
   const expectedDestination = path.join(installDir, path.basename(destinationPath, '.installing'));
@@ -102,7 +101,11 @@ function init(context: types.IExtensionContext) {
   context.registerModType('umm', 15,
     (gameId) => isSupported(gameId),
     () => undefined,
-    (instructions) => endsWithPattern(instructions, UMM_EXE));
+    (instructions) => {
+      const ummInstruction = instructions.find(instr => (instr.type === 'copy')
+        && isUMMExecPred(instr.destination));
+      return Promise.resolve(ummInstruction !== undefined);
+    });
 
   context.once(() => {
     context.api.events.on('gamemode-activated', (gameMode: string) => {
