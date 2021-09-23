@@ -1,68 +1,28 @@
-import Promise from 'bluebird';
 import * as path from 'path';
-import { actions, fs, log, selectors, types, util } from 'vortex-api';
-import * as winapi from 'winapi-bindings';
+import { selectors, types, util } from 'vortex-api';
 
-let _API;
-const UMM_EXE = 'UnityModManager.exe';
+import { addGameSupport, getSupportMap, UMM_EXE, UMM_ID } from './common';
+import { IUMMGameConfig } from './types';
+import { ensureUMM } from './ummDownloader';
+
+import { NotPremiumError } from './Errors';
+
+import { isUMMExecPred, setUMMPath, toBlue } from './util';
+
+import AttribDashlet from './views/AttribDashlet';
 
 // List of games which are supported by this modtype.
 // TODO: Have this populated automatically using UMM's configuration files.
-const gameSupport = ['dawnofman', 'gardenpaws', 'pathfinderkingmaker', 'oxygennotincluded'];
+// const gameSupport = ['dawnofman', 'gardenpaws', 'pathfinderkingmaker', 'oxygennotincluded'];
 
-const isUMMExecPred = (filePath: string): boolean =>
-  path.basename(filePath).toLowerCase() === UMM_EXE.toLowerCase();
-
-function setUMMPath(resolvedPath: string, gameId: string) {
-  const state = _API.store.getState();
-  const tools = util.getSafe(state, ['settings', 'gameMode', gameId, 'tools'], undefined);
-
-  if (tools !== undefined) {
-    const validTools = Object.keys(tools)
-      .filter(key => !!tools[key]?.path)
-      .map(key => tools[key]);
-
-    const UMM = validTools.find(tool => isUMMExecPred(tool.path));
-    return (UMM !== undefined)
-      ? (path.dirname(UMM.path) === resolvedPath)
-        ? Promise.resolve()
-        : createUMMTool(resolvedPath, UMM.id,  gameId)
-      : createUMMTool(resolvedPath, 'UnityModManager', gameId);
-  } else {
-    return createUMMTool(resolvedPath, 'UnityModManager', gameId);
-  }
-}
-
-function createUMMTool(ummPath, toolId, gameId) {
-  _API.store.dispatch(actions.addDiscoveredTool(gameId, toolId, {
-    id: 'UnityModManager',
-    name: 'Unity Mod Manager',
-    logo: 'umm.png',
-    executable: () => UMM_EXE,
-    requiredFiles: [UMM_EXE],
-    path: path.join(ummPath, UMM_EXE),
-    hidden: false,
-    custom: false,
-    workingDirectory: ummPath,
-  }, true));
-
-  return Promise.resolve();
-}
-
-function readRegistryKey(hive, key, name) {
-  try {
-    const instPath = winapi.RegGetValue(hive, key, name);
-    if (!instPath) {
-      throw new Error('empty registry key');
-    }
-    return Promise.resolve(instPath.value);
-  } catch (err) {
-    return Promise.resolve(undefined);
-  }
+function showAttrib(state: types.IState) {
+  const gameMode = selectors.activeGameId(state);
+  return getSupportMap()[gameMode] !== undefined;
 }
 
 function isSupported(gameId: string): boolean {
-  return gameSupport.indexOf(gameId) !== -1;
+  const gameConf: IUMMGameConfig = getSupportMap()[gameId];
+  return gameConf !== undefined;
 }
 
 function isUMMApp(files) {
@@ -77,12 +37,15 @@ function testUmmApp(files, gameId) {
   });
 }
 
-function installUMM(files, destinationPath, gameId) {
+function installUMM(api: types.IExtensionApi,
+                    files: string[],
+                    destinationPath: string,
+                    gameId: string): Promise<types.IInstallResult> {
   const execFile = files.find(file => isUMMExecPred(file));
   const idx = execFile.indexOf(UMM_EXE);
-  const installDir = selectors.installPathForGame(_API.store.getState(), gameId);
+  const installDir = selectors.installPathForGame(api.store.getState(), gameId);
   const expectedDestination = path.join(installDir, path.basename(destinationPath, '.installing'));
-  const instructions = files.map(file => {
+  const fileInstructions: types.IInstruction[] = files.map(file => {
     return {
       type: 'copy',
       source: file,
@@ -90,35 +53,90 @@ function installUMM(files, destinationPath, gameId) {
     };
   });
 
-  return setUMMPath(expectedDestination, gameId)
-    .then(() => Promise.resolve({ instructions }));
+  const modTypeInstruction: types.IInstruction = {
+    type: 'setmodtype',
+    value: 'umm',
+  };
+  const attribInstr: types.IInstruction = {
+    type: 'attribute',
+    key: 'customFileName',
+    value: 'Unity Mod Manager',
+  };
+
+  const instructions = [].concat(fileInstructions, modTypeInstruction, attribInstr);
+  setUMMPath(api, expectedDestination, gameId);
+  return Promise.resolve({ instructions });
 }
 
-function init(context: types.IExtensionContext) {
-  _API = context.api;
+async function genOnGameModeActivated(api: types.IExtensionApi, gameId: string) {
+  if (!isSupported(gameId)) {
+    return;
+  }
+  try {
+    await ensureUMM(api, gameId);
+  } catch (err) {
+    if (!(err instanceof NotPremiumError)) {
+      api.showErrorNotification('Failed to ensure UMM installation', err);
+    }
+  }
+}
 
-  context.registerInstaller('umm-installer', 15, testUmmApp, installUMM);
-  context.registerModType('umm', 15,
-    (gameId) => isSupported(gameId),
-    () => undefined,
-    (instructions) => {
-      const ummInstruction = instructions.find(instr => (instr.type === 'copy')
-        && isUMMExecPred(instr.destination));
-      return Promise.resolve(ummInstruction !== undefined);
-    });
+async function genOnCheckUpdate(api: types.IExtensionApi,
+                                gameId: string,
+                                mods: { [modId: string]: types.IMod }) {
+  if (!isSupported(gameId)) {
+    return;
+  }
+  try {
+    await ensureUMM(api, gameId);
+  } catch (err) {
+    if (!(err instanceof NotPremiumError)) {
+      api.showErrorNotification('Failed to ensure UMM installation', err);
+    }
+  }
+}
+
+const modTypeTest = toBlue(() => Promise.resolve(false));
+
+function init(context: types.IExtensionContext) {
+  const getPath = (game: types.IGame): string => {
+    const state: types.IState = context.api.getState();
+    const gameConf: IUMMGameConfig = getSupportMap()[game.id];
+    const discovery = state.settings.gameMode.discovered[game.id];
+    if (gameConf !== undefined && discovery?.path !== undefined) {
+      return path.join(discovery.path, UMM_ID);
+    } else {
+      return undefined;
+    }
+  };
+  context.registerInstaller('umm-installer', 15,
+    toBlue((files, gameId) => testUmmApp(files, gameId)),
+    toBlue((files, dest, gameId) => installUMM(context.api, files, dest, gameId)));
+
+  context.registerModType('umm', 15, isSupported, getPath, modTypeTest, {
+    mergeMods: true,
+    name: 'Unity Mod Manager',
+  });
+
+  context.registerAPI('ummAddGame', (gameConf: IUMMGameConfig,
+                                     callback?: (err: Error) => void) => {
+    if ((gameConf !== undefined) || ((gameConf as IUMMGameConfig) === undefined)) {
+      addGameSupport(gameConf);
+    } else {
+      callback?.(new util.DataInvalid('failed to register UMM game, invalid object received'));
+    }
+  }, { minArguments: 1 });
+
+  context.registerDashlet('UMM Support', 1, 2, 250, AttribDashlet,
+    showAttrib, () => ({}), undefined);
 
   context.once(() => {
-    context.api.events.on('gamemode-activated', (gameMode: string) => {
-      // We do this upon each gamemode activation as UMM is portable and
-      //  we may find that it's no longer present within the directory we expect.
-      return (isSupported(gameMode))
-        ? readRegistryKey('HKEY_CURRENT_USER', 'Software\\UnityModManager', 'Path')
-          .then(value => fs.statAsync(path.join(value, UMM_EXE))
-            .then(() => setUMMPath(value, gameMode)))
-          // UMM hasn't been installed/run prior to this point.
-          .catch(() => Promise.resolve())
-        : Promise.resolve();
-    });
+    context.api.events.on('gamemode-activated',
+      (gameMode: string) => genOnGameModeActivated(context.api, gameMode));
+
+    context.api.events.on('check-mods-version',
+      (gameId: string, mods: { [modId: string]: types.IMod }) =>
+        genOnCheckUpdate(context.api, gameId, mods));
   });
 
   return true;
