@@ -192,7 +192,7 @@ async function download(api: types.IExtensionApi,
                         force?: boolean): Promise<string> {
   const { domainId, modId, fileId, archiveName, allowAutoInstall } = downloadInfo;
   const state = api.getState();
-  if (util.getSafe(state, ['persistent', 'nexus', 'userInfo', 'isPremium'], false)) {
+  if (!util.getSafe(state, ['persistent', 'nexus', 'userInfo', 'isPremium'], false)) {
     return Promise.reject(new NotPremiumError());
   }
 

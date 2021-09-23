@@ -113,9 +113,10 @@ function init(context: types.IExtensionContext) {
     toBlue((files, gameId) => testUmmApp(files, gameId)),
     toBlue((files, dest, gameId) => installUMM(context.api, files, dest, gameId)));
 
-  context.registerModType('umm', 15, isSupported, getPath, modTypeTest, {
+  context.registerModType('umm', 15, isSupported, () => undefined, modTypeTest, {
     mergeMods: true,
     name: 'Unity Mod Manager',
+    deploymentEssential: false,
   });
 
   context.registerAPI('ummAddGame', (gameConf: IUMMGameConfig,
