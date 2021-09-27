@@ -1,11 +1,13 @@
 import * as path from 'path';
 import { selectors, types, util } from 'vortex-api';
 
+import { validateIUMMGameConfig } from './validationCode/validation';
+
 import { addGameSupport, getSupportMap, UMM_EXE, UMM_ID } from './common';
 import { IUMMGameConfig } from './types';
 import { ensureUMM } from './ummDownloader';
 
-import { NotPremiumError } from './Errors';
+import { InvalidAPICallError, NotPremiumError } from './Errors';
 
 import { isUMMExecPred, setUMMPath, toBlue } from './util';
 
@@ -121,10 +123,17 @@ function init(context: types.IExtensionContext) {
 
   context.registerAPI('ummAddGame', (gameConf: IUMMGameConfig,
                                      callback?: (err: Error) => void) => {
-    if ((gameConf !== undefined) || ((gameConf as IUMMGameConfig) === undefined)) {
+    const validationErrors = validateIUMMGameConfig(gameConf);
+    if (validationErrors.length === 0) {
       addGameSupport(gameConf);
     } else {
-      callback?.(new util.DataInvalid('failed to register UMM game, invalid object received'));
+      const error: InvalidAPICallError = new InvalidAPICallError(validationErrors);
+      if (callback !== undefined) {
+        callback(error);
+      } else {
+        context.api.showErrorNotification('Failed to register UMM game', error,
+          { allowReport: false });
+      }
     }
   }, { minArguments: 1 });
 

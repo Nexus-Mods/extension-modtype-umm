@@ -6,7 +6,8 @@
   "repository": "",
   "scripts": {
     "webpack": "node ./node_modules/webpack/bin/webpack --config webpack.config.js --display-error-details --progress --profile --color",
-    "build": "npm run webpack && extractInfo"
+    "build": "npm run webpack && extractInfo",
+    "postinstall": "generate-validation ."
   },
   "author": "Black Tree Gaming Ltd.",
   "license": "GPL-3.0",
@@ -19,5 +20,8 @@
     "ts-loader": "^5.1.1",
     "vortex-api": "Nexus-Mods/vortex-api",
     "webpack": "^4.19.1"
+  },
+  "dependencies": {
+    "ts-v-gen": "^1.0.1"
   }
 }

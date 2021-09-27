@@ -1,5 +1,3 @@
-import { types } from 'vortex-api';
-
 export interface IUMMGameConfig {
   gameId: string;
   autoDownloadUMM: boolean;
@@ -29,6 +27,10 @@ export interface INexusDownloadInfo {
   allowAutoInstall?: boolean;
 
   githubUrl: string;
+}
+
+export interface ISchemaViolation {
+  message: string;
 }
 
 export interface IAvailableDownloads { [version: string]: INexusDownloadInfo; }
