@@ -18,20 +18,17 @@ export function isUMMExecPred(filePath: string): boolean {
 export function setUMMPath(api: types.IExtensionApi, resolvedPath: string, gameId: string) {
   const state = api.store.getState();
   const tools = util.getSafe(state,
-    ['settings', 'gameMode', 'discovered', gameId, 'tools'], undefined);
+    ['settings', 'gameMode', 'discovered', gameId, 'tools'], {});
 
-  if (tools !== undefined) {
-    const validTools = Object.keys(tools)
-      .filter(key => !!tools[key]?.path)
-      .map(key => tools[key]);
+  const validTools = Object.keys(tools)
+    .filter(key => !!tools[key]?.path)
+    .map(key => tools[key]);
 
-    const UMM = validTools.find(tool => isUMMExecPred(tool.path));
-    if (UMM?.path !== undefined && (path.dirname(UMM.path) === resolvedPath)) {
-      createUMMTool(api, resolvedPath, UMM.id, gameId);
-    } else {
-      createUMMTool(api, resolvedPath, UMM_ID, gameId);
-    }
-  }
+  const UMM = validTools.find(tool => isUMMExecPred(tool.path));
+  const ummId = ((UMM?.path !== undefined) && (path.dirname(UMM.path) === resolvedPath))
+    ? UMM.id : UMM_ID;
+
+  createUMMTool(api, resolvedPath, ummId, gameId);
 }
 export function createUMMTool(api: types.IExtensionApi,
                               ummPath: string,
