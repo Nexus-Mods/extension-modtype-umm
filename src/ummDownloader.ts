@@ -1,4 +1,5 @@
 import path from 'path';
+import { setTimeout } from 'timers';
 import { actions, fs, log, selectors, types, util } from 'vortex-api';
 import * as winapi from 'winapi-bindings';
 import { getDownload, getSupportMap, NEXUS, UMM_EXE } from './common';
@@ -61,7 +62,14 @@ export async function ensureUMM(api: types.IExtensionApi,
         { label: 'Close' },
         {
           label: 'Download UMM',
-          action: () => downloadFromGithub(api, dl),
+          action: async () => {
+            try {
+              await downloadFromGithub(api, dl);
+            } catch (err2) {
+              err['attachLogOnReport'] = true;
+              api.showErrorNotification('Failed to download UMM dependency', err2);
+            }
+          },
           default: true,
         },
       ]);
@@ -106,8 +114,10 @@ async function downloadFromGithub(api: types.IExtensionApi, dlInfo: INexusDownlo
   .catch(err => {
     if (err instanceof util.UserCanceled) {
       return Promise.resolve();
-    } else {
+    } else if (err instanceof util.ProcessCanceled) {
       return downloadFromGithub(api, dlInfo);
+    } else {
+      return Promise.reject(err);
     }
   });
 }
@@ -147,7 +157,7 @@ async function install(api: types.IExtensionApi,
                        downloadId: string,
                        force?: boolean): Promise<string> {
   const state = api.getState();
-  if (downloadInfo.allowAutoInstall && state.settings.automation?.['install'] !== true) {
+  if (downloadInfo.allowAutoInstall) {
     const mods: { [modId: string]: types.IMod } =
       util.getSafe(state, ['persistent', 'mods', downloadInfo.gameId], {});
     const isInjectorInstalled = (force) ? false : Object.keys(mods).find(id =>
@@ -201,16 +211,34 @@ async function download(api: types.IExtensionApi,
     return finalize(api, downloadInfo, downloadId, force);
   }
 
+  const autoInstallEnabled = state.settings.automation?.['install'];
+  if (autoInstallEnabled) {
+    // Leaving auto install enabled will cause the UMM download
+    //  to attempt to install the download as an extension given
+    //  that UMM is hosted on the 'site' game domain.
+    api.store.dispatch(actions.setAutoInstall(false));
+  }
+
   return api.emitAndAwait('nexus-download', domainId, modId, fileId, archiveName, allowAutoInstall)
     .then(async () => {
       const dlData = genDownloadInfo(api, downloadInfo.archiveName);
       return (finalize(api, downloadInfo, dlData.downloadId, force) as any);
     })
-    .catch(err => {
+    .catch(async err => {
       log('error', 'failed to download from NexusMods.com',
         JSON.stringify(downloadInfo, undefined, 2));
-      err['attachLogOnReport'] = true;
-      api.showErrorNotification('Failed to download UMM dependency', err);
+      try {
+        await downloadFromGithub(api, downloadInfo);
+      } catch (err2) {
+        err2['attachLogOnReport'] = true;
+        api.showErrorNotification('Failed to download UMM dependency', err2);
+      }
+    })
+    .finally(() => {
+      if (autoInstallEnabled) {
+        // Restore auto install setting.
+        api.store.dispatch(actions.setAutoInstall(true));
+      }
     });
 }
 
