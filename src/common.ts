@@ -1,5 +1,5 @@
 import semver from 'semver';
-import { IAvailableDownloads, INexusDownloadInfo, IUMMGameConfig } from "./types";
+import { IAvailableDownloads, INexusDownloadInfo, IUMMGameConfig } from './types';
 
 export const NEXUS = 'www.nexusmods.com';
 export const UMM_EXE = 'UnityModManager.exe';
@@ -11,7 +11,7 @@ export const addGameSupport = (gameConf: IUMMGameConfig) => {
   GAME_SUPPORT[gameConf.gameId] = gameConf;
 };
 
-const DEFAULT_VERSION = '0.23.5-b';
+const DEFAULT_VERSION = '0.24.2';
 const AVAILABLE: IAvailableDownloads = {
   '0.21.8-b': {
     domainId: 'site',
@@ -28,6 +28,14 @@ const AVAILABLE: IAvailableDownloads = {
     archiveName: 'UnityModManager-21-0-23-5b.zip',
     allowAutoInstall: true,
     githubUrl: 'https://github.com/IDCs/unity-mod-manager/releases/tag/0.23.5b',
+  },
+  '0.24.2': {
+    domainId: 'site',
+    modId: '21',
+    fileId: '1359',
+    archiveName: 'UnityModManager-21-0-24-2.zip',
+    allowAutoInstall: true,
+    githubUrl: 'https://github.com/IDCs/unity-mod-manager/releases/tag/0.24.2',
   },
 };
 
