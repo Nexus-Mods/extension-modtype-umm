@@ -43,6 +43,7 @@ export function createUMMTool(api: types.IExtensionApi,
     path: path.join(ummPath, UMM_EXE),
     hidden: false,
     custom: false,
+    defaultPrimary: true,
     workingDirectory: ummPath,
   }, true));
 }
