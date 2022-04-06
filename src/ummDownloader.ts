@@ -257,7 +257,7 @@ async function download(api: types.IExtensionApi,
 function genDownloadInfo(api: types.IExtensionApi, archiveName: string) {
   const state = api.getState();
   const downloads: { [dlId: string]: types.IDownload } = util.getSafe(state, ['persistent', 'downloads', 'files'], {});
-  const downloadId = Object.keys(downloads).find(dId => downloads[dId].localPath === archiveName);
+  const downloadId = Object.keys(downloads).find(dId => downloads[dId].localPath.toUpperCase() === archiveName.toUpperCase());
   return { downloads, downloadId, state };
 }
 
