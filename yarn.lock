@@ -1258,10 +1258,10 @@ ts-loader@^9.2.6:
     micromatch "^4.0.0"
     semver "^7.3.4"
 
-ts-v-gen@^1.0.1:
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/ts-v-gen/-/ts-v-gen-1.0.1.tgz#825889e0ad22dcf7df1cfe2bf9b6b1c250152d6d"
-  integrity sha512-RUOw9J95cg17LQIumVVP0e1hgLeqSM0sdVZx3wuqu+b9h0vo1l8Av/aV62UY0gk8Dwq++6ga9lWZMuA2t1TNpA==
+ts-v-gen@^1.0.3:
+  version "1.0.3"
+  resolved "https://registry.yarnpkg.com/ts-v-gen/-/ts-v-gen-1.0.3.tgz#56f79bebb816aa634586f582eaeca0d63e4a68e4"
+  integrity sha512-DXxxsIVITZKNbrchFqJWH78zuHQyQvNP3gbs0NiPoOkAFtUtwZ/TaUHHmHJCJqd0WLyZCmgDTw5BpruJkcv7ng==
   dependencies:
     "@types/node" "^16.3.2"
     ajv "^8.6.1"
